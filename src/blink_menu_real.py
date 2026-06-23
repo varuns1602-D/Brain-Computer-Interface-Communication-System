@@ -2,11 +2,11 @@ import cv2
 import mediapipe as mp
 import math
 import time
+import numpy as np
 
 # -------------------------
 # MENU OPTIONS
 # -------------------------
-
 options = [
     "HELP",
     "WATER",
@@ -20,18 +20,16 @@ selected = 0
 # -------------------------
 # EYE LANDMARKS
 # -------------------------
-
 LEFT_EYE = [33, 160, 158, 133, 153, 144]
 RIGHT_EYE = [362, 385, 387, 263, 373, 380]
 
 EAR_THRESHOLD = 0.20
-REQUIRED_FRAMES = 3
-COOLDOWN = 0.5
+REQUIRED_FRAMES = 2
+COOLDOWN = 0.8
 
 # -------------------------
-# MEDIAPIPE SETUP
+# MEDIAPIPE
 # -------------------------
-
 mp_face_mesh = mp.solutions.face_mesh
 
 face_mesh = mp_face_mesh.FaceMesh(
@@ -41,25 +39,19 @@ face_mesh = mp_face_mesh.FaceMesh(
 
 cap = cv2.VideoCapture(0)
 
-# -------------------------
-# VARIABLES
-# -------------------------
-
 start_time = time.time()
 
 blink_count = 0
 closed_frames = 0
 last_blink_time = 0
 
-# -------------------------
-# FUNCTIONS
-# -------------------------
 
 def distance(p1, p2):
     return math.sqrt(
         (p1[0] - p2[0]) ** 2 +
         (p1[1] - p2[1]) ** 2
     )
+
 
 def calculate_ear(points):
 
@@ -70,9 +62,6 @@ def calculate_ear(points):
 
     return (vertical1 + vertical2) / (2.0 * horizontal)
 
-# -------------------------
-# MAIN LOOP
-# -------------------------
 
 while True:
 
@@ -81,20 +70,22 @@ while True:
     if not success:
         break
 
+    frame = cv2.flip(frame, 1)
+
     # Startup delay
     if time.time() - start_time < 2:
 
         cv2.putText(
             frame,
             "Initializing...",
-            (30, 50),
+            (20, 50),
             cv2.FONT_HERSHEY_SIMPLEX,
             1,
             (0, 255, 255),
             2
         )
 
-        cv2.imshow("Blink Counter", frame)
+        cv2.imshow("Eye Controlled Menu", frame)
 
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
@@ -123,8 +114,6 @@ while True:
 
             left_points.append((x, y))
 
-            cv2.circle(frame, (x, y), 3, (0, 255, 0), -1)
-
         for idx in RIGHT_EYE:
 
             landmark = face_landmarks.landmark[idx]
@@ -134,8 +123,6 @@ while True:
 
             right_points.append((x, y))
 
-            cv2.circle(frame, (x, y), 3, (0, 255, 0), -1)
-
         left_ear = calculate_ear(left_points)
         right_ear = calculate_ear(right_points)
 
@@ -143,56 +130,57 @@ while True:
 
         current_time = time.time()
 
-        cv2.putText(
-            frame,
-            f"EAR: {avg_ear:.2f}",
-            (30, 50),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            1,
-            (0, 255, 0),
-            2
-        )
-
         if avg_ear < EAR_THRESHOLD:
             closed_frames += 1
         else:
             closed_frames = 0
-
         if (
             closed_frames >= REQUIRED_FRAMES and
             current_time - last_blink_time > COOLDOWN
-        ):
+):
 
             blink_count += 1
-            last_blink_time = current_time
-
             selected = (selected + 1) % len(options)
 
-            print("BLINK EVENT")
+            print("================================")
+            print("BLINK DETECTED")
+            print("Blink Count:", blink_count)
+            print("Selected Index:", selected)
+            print("================================")
 
-        cv2.putText(
-            frame,
-            f"Blinks: {blink_count}",
-            (30, 100),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            1,
-            (255, 0, 0),
-            2
-        )
+    last_blink_time = current_time
 
-        cv2.putText(
-            frame,
-            f"Frames: {closed_frames}",
-            (30, 150),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.8,
-            (0, 0, 255),
-            2
-        )
+    # MOVE MENU
+    selected = (selected + 1) % len(options)
+
+    print("Moved To:", options[selected])
 
     # -------------------------
     # DRAW MENU
     # -------------------------
+
+    menu_x = 20
+    menu_y = 120
+
+    cv2.putText(
+        frame,
+        f"Blinks: {blink_count}",
+        (20, 50),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        1,
+        (0, 255, 0),
+        2
+    )
+
+    cv2.putText(
+        frame,
+        "Blink = Next Option",
+        (20, 85),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.7,
+        (255, 255, 255),
+        2
+    )
 
     for i, option in enumerate(options):
 
@@ -204,14 +192,14 @@ while True:
         cv2.putText(
             frame,
             option,
-            (450, 120 + i * 50),
+            (menu_x, menu_y + i * 50),
             cv2.FONT_HERSHEY_SIMPLEX,
             1,
             color,
             2
         )
 
-    cv2.imshow("Blink Counter", frame)
+    cv2.imshow("Eye Controlled Menu", frame)
 
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break
